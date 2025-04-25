@@ -1,6 +1,16 @@
-import img from "./../../../../public/svg/img1.svg"
+import img from "./../../../../public/svg/img1.svg";
 
 function Home() {
+    const textStyleWithStroke = {
+        color: "white",
+        textShadow: `
+            0.5px 0.5px 0 black,
+            -0.5px -0.5px 0 black,
+            0.5px -0.5px 0 black,
+            -0.5px 0.5px 0 black
+        `
+    };
+
     return (
         <div className="pt-5 pt-lg-0" id="home"
             style={{
@@ -16,23 +26,28 @@ function Home() {
                     <div className="col-12 col-lg-6 text-center text-lg-start">
                         <h1
                             style={{
-                                background: 'linear-gradient(90deg, #DEE063, #a8e063, #56ab2f)',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent'
+                                ...textStyleWithStroke,
+                                fontWeight: "bold",
+                                fontSize: "3.5rem",
                             }}
-                            className="fw-bold display-3">
+                            className="display-3"
+                        >
                             Spa Sentirse Bien
                         </h1>
 
-                        <h2 className="fw-bold text-white mb-3">
+                        <h2 className="fw-bold mb-3" style={{ ...textStyleWithStroke, fontWeight: "900" }}>
                             Descubre la Experiencia de Bienestar Total
                         </h2>
-                        <p className="lead text-white mb-4">
+                        <p className="lead mb-4" style={{ ...textStyleWithStroke, fontWeight: "600" }}>
                             Te brindamos un oasis de tranquilidad, donde cada detalle ha sido cuidadosamente pensado para ofrecerte una experiencia de relajación profunda y renovación integral.
                         </p>
                         <div className="d-flex justify-content-center justify-content-lg-start gap-2">
-                            <button className="btn btn-success btn-lg">Explorar Servicios</button>
-                            <button className="btn btn-outline-light btn-lg">Conócenos</button>
+                            <button className="btn" style={{ backgroundColor: "#f06292", color: "white", fontWeight: "bold" }}>
+                                Explorar Servicios
+                            </button>
+                            <button className="btn btn-outline-light btn-lg fw-bold" style={{ fontWeight: "bold" }}>
+                                Conócenos
+                            </button>
                         </div>
                     </div>
                     <div className="col-12 col-lg-6 d-flex justify-content-center mt-4 mt-lg-0">
