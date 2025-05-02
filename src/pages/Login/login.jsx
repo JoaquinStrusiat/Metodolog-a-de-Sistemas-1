@@ -1,85 +1,36 @@
+import { useEffect, useRef, useState } from "react";
 import Form from "@/components/form";
 import { Link, useLocation } from "react-router-dom";
-import { useEffect } from "react";
 
 function Login() {
   const location = useLocation();
   const redirectAfterLogin = location.state?.from || '/';
+  const canvasRef = useRef(null);
+  const contextRef = useRef(null);
+  const programRef = useRef(null);
+  const uniformsRef = useRef({});
+  const imageRef = useRef(null);
+  const animationRef = useRef(null);
+  const startTimeRef = useRef(performance.now());
+  
+  const [canvasSize, setCanvasSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
 
-  useEffect(() => {
-    const styleId = "water-effect-style";
-    if (!document.getElementById(styleId)) {
-      const styleTag = document.createElement("style");
-      styleTag.id = styleId;
-      styleTag.innerHTML = `
-        .page-container {
-          position: relative;
-          min-height: 100vh;
-          overflow: hidden;
-        }
-
-        #svg {
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100vw;
-          height: 100vh;
-          z-index: -2;
-          pointer-events: none;
-        }
-
-        #distorted-image {
-          filter: url("#disFilter");
-        }
-
-        /* Estilo para el texto exterior */
-        .text-white {
-          color: white;
-        }
-
-        /* Sombreado oscuro fino en el título */
-        .title-shadow {
-          text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.7);
-        }
-
-        /* Texto blanco y rosa debajo del formulario */
-        .text-white-bottom {
-          color: white;
-        }
-
-        .text-white-bottom a {
-          color: pink; /* Enlace rosa */
-        }
-      `;
-      document.head.appendChild(styleTag);
-    }
-
-    const turbulence = document.querySelector('#disFilter feTurbulence');
-    let frameId;
-    let base = 0.005;
-    let direction = 1;
-
-    const animate = () => {
-      if (!turbulence) return;
-
-      base += direction * 0.00002;
-      if (base >= 0.01 || base <= 0.004) direction *= -1;
-
-      turbulence.setAttribute('baseFrequency', base.toString());
-      frameId = requestAnimationFrame(animate);
-    };
-
-    frameId = requestAnimationFrame(animate);
-
-    return () => cancelAnimationFrame(frameId);
-  }, []);
+  // Shader parameters
+  const shaderParams = {
+    blueish: 0.6,
+    scale: 7,
+    illumination: 0.15,
+    surfaceDistortion: 0.07,
+    waterDistortion: 0.03,
+  };
 
   // Función para manejar el inicio de sesión y buscar datos completos del usuario
   const customLoginLogic = async (formData) => {
-    // Buscar datos del usuario en localStorage
     const storedUsers = localStorage.getItem('allUsers');
     let users = [];
-    
     if (storedUsers) {
       try {
         users = JSON.parse(storedUsers);
@@ -87,21 +38,14 @@ function Login() {
         console.error("Error parsing user data", error);
       }
     }
-    
-    // Verificar credenciales y obtener datos completos
     const user = users.find(u => u.email === formData.email && u.password === formData.password);
-    
     if (user) {
-      // Si se encuentra el usuario, devolver todos sus datos
       return {
         ...user,
         id: user.id || `user_${Math.random().toString(36).substr(2, 9)}`,
         timestamp: new Date().toISOString()
       };
     } else {
-      // Si no existe un usuario registrado con esas credenciales,
-      // simulamos que se ha cargado la información (para desarrollo)
-      // En un entorno real, esto debería ser un error de autenticación
       return {
         email: formData.email,
         id: `user_${Math.random().toString(36).substr(2, 9)}`,
@@ -147,66 +91,349 @@ function Login() {
       save: true,
       key: 'userData'
     },
-    customLoginLogic: customLoginLogic, // Función personalizada para manejar el login
-    redirectPath: redirectAfterLogin // Redirigir a la página original o a inicio
+    customLoginLogic: customLoginLogic,
+    redirectPath: redirectAfterLogin
   };
 
+  // Vertex Shader
+  const vertexShaderSource = `
+    precision mediump float;
+    varying vec2 vUv;
+    attribute vec2 a_position;
+
+    void main() {
+        vUv = .5 * (a_position + 1.);
+        gl_Position = vec4(a_position, 0.0, 1.0);
+    }
+  `;
+
+  // Fragment Shader
+  const fragmentShaderSource = `
+    precision mediump float;
+
+    varying vec2 vUv;
+    uniform sampler2D u_image_texture;
+    uniform float u_time;
+    uniform float u_ratio;
+    uniform float u_img_ratio;
+    uniform float u_blueish;
+    uniform float u_scale;
+    uniform float u_illumination;
+    uniform float u_surface_distortion;
+    uniform float u_water_distortion;
+
+    #define TWO_PI 6.28318530718
+    #define PI 3.14159265358979323846
+
+    vec3 mod289(vec3 x) { return x - floor(x * (1. / 289.)) * 289.; }
+    vec2 mod289(vec2 x) { return x - floor(x * (1. / 289.)) * 289.; }
+    vec3 permute(vec3 x) { return mod289(((x*34.)+1.)*x); }
+    float snoise(vec2 v) {
+        const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+        vec2 i = floor(v + dot(v, C.yy));
+        vec2 x0 = v - i + dot(i, C.xx);
+        vec2 i1;
+        i1 = (x0.x > x0.y) ? vec2(1., 0.) : vec2(0., 1.);
+        vec4 x12 = x0.xyxy + C.xxzz;
+        x12.xy -= i1;
+        i = mod289(i);
+        vec3 p = permute(permute(i.y + vec3(0., i1.y, 1.)) + i.x + vec3(0., i1.x, 1.));
+        vec3 m = max(0.5 - vec3(dot(x0, x0), dot(x12.xy, x12.xy), dot(x12.zw, x12.zw)), 0.);
+        m = m*m;
+        m = m*m;
+        vec3 x = 2. * fract(p * C.www) - 1.;
+        vec3 h = abs(x) - 0.5;
+        vec3 ox = floor(x + 0.5);
+        vec3 a0 = x - ox;
+        m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
+        vec3 g;
+        g.x = a0.x * x0.x + h.x * x0.y;
+        g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+        return 130. * dot(m, g);
+    }
+
+    mat2 rotate2D(float r) {
+        return mat2(cos(r), sin(r), -sin(r), cos(r));
+    }
+
+    float surface_noise(vec2 uv, float t, float scale) {
+        vec2 n = vec2(.1);
+        vec2 N = vec2(.1);
+        mat2 m = rotate2D(.5);
+        for (int j = 0; j < 10; j++) {
+            uv *= m;
+            n *= m;
+            vec2 q = uv * scale + float(j) + n + (.5 + .5 * float(j)) * (mod(float(j), 2.) - 1.) * t;
+            n += sin(q);
+            N += cos(q) / scale;
+            scale *= 1.2;
+        }
+        return (N.x + N.y + .1);
+    }
+
+    void main() {
+        vec2 uv = vUv;
+        uv.y = 1. - uv.y;
+        uv.x *= u_ratio;
+
+        float t = 0.001 * u_time;
+        vec3 color = vec3(0.);
+        float opacity = 0.;
+
+        float outer_noise = snoise((.3 + .1 * sin(t)) * uv + vec2(0., .2 * t));
+        vec2 surface_noise_uv = 2. * uv + (outer_noise * .2);
+
+        float surface_noise = surface_noise(surface_noise_uv, t, u_scale);
+        surface_noise *= pow(uv.y, .3);
+        surface_noise = pow(surface_noise, 2.);
+
+        vec2 img_uv = vUv;
+        img_uv -= 0.5;
+
+        float screenRatio = u_ratio;
+        float imageRatio = u_img_ratio;
+
+        if (screenRatio > imageRatio) {
+          img_uv *= vec2(screenRatio / imageRatio, 1.0);  // scale X
+        } else {
+          img_uv *= vec2(1.0, imageRatio / screenRatio);  // scale Y
+        }
+
+        float zoom = 0.7; // Leve zoom in
+
+        img_uv *= zoom;
+        img_uv += 0.5;
+
+        img_uv.y = 1.0 - img_uv.y;
+
+
+        img_uv += (u_water_distortion * outer_noise);
+        img_uv += (u_surface_distortion * surface_noise);
+
+        vec4 img = texture2D(u_image_texture, img_uv);
+        img *= (1. + u_illumination * surface_noise);
+
+        color += img.rgb;
+        color += u_illumination * vec3(1. - u_blueish, 1., 1.) * surface_noise;
+        opacity += img.a;
+
+        float edge_width = .02;
+        float edge_alpha = smoothstep(0., edge_width, img_uv.x) * smoothstep(1., 1. - edge_width, img_uv.x);
+        edge_alpha *= smoothstep(0., edge_width, img_uv.y) * smoothstep(1., 1. - edge_width, img_uv.y);
+        color *= edge_alpha;
+        opacity *= edge_alpha;
+
+        gl_FragColor = vec4(color, opacity);
+    }
+  `;
+
+  // Function to handle WebGL shader compilation
+  const createShader = (gl, source, type) => {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      console.error('Shader compilation error:', gl.getShaderInfoLog(shader));
+      gl.deleteShader(shader);
+      return null;
+    }
+
+    return shader;
+  };
+
+  // Function to create shader program
+  const createShaderProgram = (gl, vertexShader, fragmentShader) => {
+    const program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.error('Program linking error:', gl.getProgramInfoLog(program));
+      return null;
+    }
+
+    return program;
+  };
+
+  // Function to get shader uniform locations
+  const getUniforms = (gl, program) => {
+    const uniforms = {};
+    const uniformCount = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
+    
+    for (let i = 0; i < uniformCount; i++) {
+      const uniformName = gl.getActiveUniform(program, i).name;
+      uniforms[uniformName] = gl.getUniformLocation(program, uniformName);
+    }
+    
+    return uniforms;
+  };
+
+  // Function to load the background image
+  const loadImage = (gl, src) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.src = src;
+    
+    image.onload = () => {
+      imageRef.current = image;
+      
+      const imageTexture = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, imageTexture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+      gl.uniform1i(uniformsRef.current.u_image_texture, 0);
+      
+      updateCanvasSize();
+    };
+  };
+
+  // Function to render the animation frame
+  const render = () => {
+    const gl = contextRef.current;
+    if (!gl) return;
+    
+    const currentTime = performance.now() - startTimeRef.current;
+    gl.uniform1f(uniformsRef.current.u_time, currentTime);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    
+    animationRef.current = requestAnimationFrame(render);
+  };
+
+  // Function to update canvas size and related uniforms
+  const updateCanvasSize = () => {
+    const canvas = canvasRef.current;
+    const gl = contextRef.current;
+    const image = imageRef.current;
+    
+    if (!canvas || !gl || !image) return;
+    
+    const devicePixelRatio = Math.min(window.devicePixelRatio, 2);
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    
+    canvas.width = width * devicePixelRatio;
+    canvas.height = height * devicePixelRatio;
+    
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    
+    const imgRatio = image.naturalWidth / image.naturalHeight;
+    gl.uniform1f(uniformsRef.current.u_ratio, canvas.width / canvas.height);
+    gl.uniform1f(uniformsRef.current.u_img_ratio, imgRatio);
+    
+    setCanvasSize({ width, height });
+  };
+
+  // Initialize WebGL context
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    // Get WebGL context
+    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    if (!gl) {
+      console.error('WebGL not supported');
+      return;
+    }
+    
+    contextRef.current = gl;
+    
+    // Create shaders
+    const vertexShader = createShader(gl, vertexShaderSource, gl.VERTEX_SHADER);
+    const fragmentShader = createShader(gl, fragmentShaderSource, gl.FRAGMENT_SHADER);
+    
+    // Create shader program
+    const program = createShaderProgram(gl, vertexShader, fragmentShader);
+    if (!program) return;
+    
+    programRef.current = program;
+    gl.useProgram(program);
+    
+    // Get uniforms
+    uniformsRef.current = getUniforms(gl, program);
+    
+    // Create geometry (a quad that fills the screen)
+    const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
+    const vertexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+    
+    // Set vertex attributes
+    const positionLocation = gl.getAttribLocation(program, 'a_position');
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+    
+    // Set uniform values
+    gl.uniform1f(uniformsRef.current.u_blueish, shaderParams.blueish);
+    gl.uniform1f(uniformsRef.current.u_scale, shaderParams.scale);
+    gl.uniform1f(uniformsRef.current.u_illumination, shaderParams.illumination);
+    gl.uniform1f(uniformsRef.current.u_surface_distortion, shaderParams.surfaceDistortion);
+    gl.uniform1f(uniformsRef.current.u_water_distortion, shaderParams.waterDistortion);
+    
+    // Load background image - use the same image as register.jsx
+    loadImage(gl, "https://i.ytimg.com/vi/kDRI_E-619k/maxresdefault.jpg");
+    
+    // Start animation
+    startTimeRef.current = performance.now();
+    animationRef.current = requestAnimationFrame(render);
+    
+    // Handle window resize
+    window.addEventListener('resize', updateCanvasSize);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', updateCanvasSize);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, []);
+
   return (
-    <div className="page-container">
-      <svg id="svg">
-        <defs>
-          <filter id="disFilter">
-            <feTurbulence
-              type="turbulence"
-              baseFrequency="0.005"
-              numOctaves="3"
-              seed="1"
-              result="turbulence"
-            />
-            <feDisplacementMap
-              in="SourceGraphic"
-              in2="turbulence"
-              scale="30"
-              xChannelSelector="R"
-              yChannelSelector="B"
-              result="displacement"
-            />
-          </filter>
-        </defs>
-
-        <image
-          id="distorted-image"
-          xlinkHref="https://github.com/SebastianPanozzo/spa-proyecto/blob/master/Metodolog-a-de-Sistemas-1/public/imagenes/fondo_Register_login.jpeg?raw=true"
-          x="-10%"
-          y="-10%"
-          width="120%"
-          height="120%"
-          preserveAspectRatio="none"
-        />
-      </svg>
-
-      <div className="container mt-5 pt-5">
+    <>
+      <canvas 
+        ref={canvasRef} 
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          zIndex: -1
+        }}
+      />
+      <div className="container mt-5 pt-5" style={{ position: 'relative', zIndex: 1 }}>
         <div className="row justify-content-center">
           <div className="col-12 col-md-8 col-lg-6">
             <div className="text-center mb-4">
-              <h2 className="fw-bold text-white title-shadow">Bienvenido de nuevo</h2>
-              <p className="text-white title-shadow">Ingresa tus datos para acceder a tu cuenta</p>
+              <h2 className="fw-bold" style={{ color: '#fff', textShadow: '0 0 10px rgba(0,0,0,0.5)' }}>Bienvenido de nuevo</h2>
+              <p style={{ color: '#fff', textShadow: '0 0 8px rgba(0,0,0,0.5)' }}>Ingresa tus datos para acceder a tu cuenta</p>
             </div>
 
-            <div className="form-container">
+            <div className="form-container" style={{ 
+              backgroundColor: 'transparent',
+              borderRadius: '10px',
+              padding: '20px',
+            }}>
               <Form context={loginContext} />
             </div>
 
             <div className="text-center mt-3">
-              <p className="text-white-bottom">
+              <p style={{ color: '#fff', textShadow: '0 0 8px rgba(0,0,0,0.5)' }}>
                 ¿No tienes cuenta?{" "}
-                <Link to="/register" className="text-white-bottom">Regístrate aquí</Link>
+                <Link to="/register" style={{ color: '#fff', fontWeight: 'bold', textDecoration: 'underline' }}>
+                  Regístrate aquí
+                </Link>
               </p>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

@@ -23,7 +23,7 @@ function Services() {
 
     // Estilo con borde para texto blanco
     const textStyleWithStroke = {
-        color: "white",
+        color: "#ff528c",
         textShadow: `
             0.5px 0.5px 0 black,
             -0.5px -0.5px 0 black,
@@ -35,7 +35,7 @@ function Services() {
     return ( 
         <div className="bg-light" id="services"  
             style={{ 
-                backgroundImage: `url('/img/bgServices.webp')`, 
+                backgroundImage: `url('/img/BgServices.jpeg')`, 
                 backgroundSize: "cover", 
                 backgroundPosition: "center", 
                 backgroundRepeat: "no-repeat", 

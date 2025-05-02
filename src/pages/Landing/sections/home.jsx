@@ -11,6 +11,20 @@ function Home() {
         `
     };
 
+    const scrollToServices = () => {
+        const servicesSection = document.getElementById("services");
+        if (servicesSection) {
+            servicesSection.scrollIntoView({ behavior: "smooth" });
+        }
+    };
+
+    const scrollToAbout = () => {
+        const aboutSection = document.getElementById("about");
+        if (aboutSection) {
+            aboutSection.scrollIntoView({ behavior: "smooth" });
+        }
+    };
+
     return (
         <div className="pt-5 pt-lg-0" id="home"
             style={{
@@ -42,10 +56,18 @@ function Home() {
                             Te brindamos un oasis de tranquilidad, donde cada detalle ha sido cuidadosamente pensado para ofrecerte una experiencia de relajación profunda y renovación integral.
                         </p>
                         <div className="d-flex justify-content-center justify-content-lg-start gap-2">
-                            <button className="btn" style={{ backgroundColor: "#f06292", color: "white", fontWeight: "bold" }}>
+                            <button
+                                className="btn"
+                                style={{ backgroundColor: "#f06292", color: "white", fontWeight: "bold" }}
+                                onClick={scrollToServices}
+                            >
                                 Explorar Servicios
                             </button>
-                            <button className="btn btn-outline-light btn-lg fw-bold" style={{ fontWeight: "bold" }}>
+                            <button
+                                className="btn btn-outline-light btn-lg fw-bold"
+                                style={{ fontWeight: "bold" }}
+                                onClick={scrollToAbout}
+                            >
                                 Conócenos
                             </button>
                         </div>

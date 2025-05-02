@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 
-function Card({ context, onReserveClick }) {
+function Card({ context, onReserveClick, onDetailsClick }) {
   const { title, description, image, alt, button, price } = context;
 
   const buttonText = typeof button === 'object' && button.name ? button.name : null;
@@ -9,7 +9,7 @@ function Card({ context, onReserveClick }) {
 
   // Estilo solo para el título con borde negro
   const textStyleWithStroke = {
-    color: "white",
+    color: "#ff528c",
     textShadow: `
       0.5px 0.5px 0 black,
       -0.5px -0.5px 0 black,
@@ -66,7 +66,7 @@ function Card({ context, onReserveClick }) {
     <div
       className="card shadow-lg rounded-3 h-100"
       style={{
-        backgroundColor: "#a5d6a7",
+        backgroundColor: "#ffffff",
         overflow: "hidden",
         transition: "transform 0.3s ease, box-shadow 0.3s ease",
         transform: `translate(var(--x, 0), var(--y, 0))`,
@@ -91,7 +91,7 @@ function Card({ context, onReserveClick }) {
       </div>
       <div className="card-body p-3 d-flex flex-column">
         <h5 className="card-title fw-bolder" style={textStyleWithStroke}>{title}</h5>
-        <p className="card-text flex-grow-1 text-white">{description}</p>
+        <p className="card-text flex-grow-1" style={{ color: "#ff528c" }}>{description}</p>
 
         {price && (
           <div className="d-flex justify-content-between align-items-center mb-2">
@@ -99,18 +99,28 @@ function Card({ context, onReserveClick }) {
           </div>
         )}
 
-        {buttonText && (buttonPath || onReserveClick) && (
-          <div className="mt-auto">
+        <div className="mt-auto">
+          {buttonText && (buttonPath || onReserveClick) && (
             <Link
               to={buttonPath || "#"}
-              className="btn w-100"
-              style={{ backgroundColor: "#f8bbd0", color: "white" }}
+              className="btn w-100 mb-2"
+              style={{ backgroundColor: "#ff528c", color: "#ffffff" }}
               onClick={handleButtonClick}
             >
               {buttonText}
             </Link>
-          </div>
-        )}
+          )}
+          
+          {onDetailsClick && (
+            <button
+              className="btn w-100"
+              style={{ borderColor: "#02afbf", color: "#02afbf" }}
+              onClick={onDetailsClick}
+            >
+              Ver detalles
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
